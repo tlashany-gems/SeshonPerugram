@@ -1,90 +1,126 @@
-from pyrogram import Client, filters
-from pyrogram.errors import (
-    SessionPasswordNeeded,
-    PhoneCodeInvalid,
-    PhoneCodeExpired,
-    PasswordHashInvalid,
-    PhoneNumberInvalid
-)
-from pyromod import listen
+import telebot
+import logging
+from pyrogram import Client
+from pyrogram.errors import SessionPasswordNeeded
 
+# ---------- Logging ----------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# ---------- بياناتك ----------
 API_ID = 21173110
 API_HASH = "71db0c8aae15effc04dcfc636e68c349"
 BOT_TOKEN = "2132657853:AAGE6D-W-1tbANoW2aZOf4wJPL-bT-1QnhQ"
 
-app = Client(
-    "session_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-    in_memory=True
-)
+bot = telebot.TeleBot(BOT_TOKEN)
 
+# ---------- Start ----------
+@bot.message_handler(commands=['start'])
+def start(message):
+    logging.info(f"User {message.from_user.id} started bot")
 
-@app.on_message(filters.command("start"))
-async def start(client, message):
-
-    phone_msg = await app.ask(
-        message.chat.id,
-        "📱 ارسل رقم الهاتف مع كود الدولة\nمثال:\n+201000000000"
+    msg = bot.reply_to(
+        message,
+        "📱 ابعت رقم الهاتف مع كود الدولة\nمثال:\n+201000000000"
     )
 
-    phone = phone_msg.text
+    bot.register_next_step_handler(msg, get_phone)
 
-    user = Client(
-        "user_session",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        in_memory=True
-    )
-
-    await user.connect()
+# ---------- رقم الهاتف ----------
+def get_phone(message):
 
     try:
-        code = await user.send_code(phone)
-    except PhoneNumberInvalid:
-        return await message.reply("❌ الرقم غير صحيح")
+        phone = message.text
+        logging.info(f"Phone received: {phone}")
 
-    code_msg = await app.ask(
-        message.chat.id,
-        "💬 ارسل كود التحقق (يمكنك كتابته بأي شكل)"
-    )
+        app = Client(
+            "session",
+            api_id=API_ID,
+            api_hash=API_HASH
+        )
 
-    login_code = "".join(filter(str.isdigit, code_msg.text))
+        app.connect()
 
-    try:
-        await user.sign_in(
+        code = app.send_code(phone)
+
+        msg = bot.send_message(message.chat.id, "💬 ابعت كود التحقق")
+
+        bot.register_next_step_handler(
+            msg,
+            get_code,
             phone,
             code.phone_code_hash,
-            login_code
+            app
         )
 
-    except SessionPasswordNeeded:
+    except Exception as e:
+        logging.error(f"Error in get_phone: {e}")
+        bot.send_message(message.chat.id, f"❌ خطأ:\n{e}")
 
-        pass_msg = await app.ask(
-            message.chat.id,
-            "🔐 الحساب فيه تحقق بخطوتين\nارسل الباسورد"
-        )
+# ---------- الكود ----------
+def get_code(message, phone, phone_code_hash, app):
+
+    try:
+        code = "".join(filter(str.isdigit, message.text))
+        logging.info(f"Code received: {code}")
 
         try:
-            await user.check_password(pass_msg.text)
-        except PasswordHashInvalid:
-            return await message.reply("❌ الباسورد خطأ")
+            app.sign_in(phone, phone_code_hash, code)
 
-    except (PhoneCodeInvalid, PhoneCodeExpired):
-        return await message.reply("❌ الكود خطأ")
+        except SessionPasswordNeeded:
 
-    session = await user.export_session_string()
+            msg = bot.send_message(
+                message.chat.id,
+                "🔐 الحساب فيه تحقق بخطوتين\nابعت الباسورد"
+            )
 
-    await user.send_message(
-        "me",
-        f"🔑 جلسة حسابك:\n\n`{session}`"
-    )
+            bot.register_next_step_handler(msg, get_password, app)
+            return
 
-    await user.disconnect()
+        session = app.export_session_string()
 
-    await message.reply("✅ تم توليد الجلسة وإرسالها للرسائل المحفوظة")
+        logging.info("Session generated successfully")
 
+        bot.send_message(
+            message.chat.id,
+            f"✅ الجلسة:\n\n`{session}`",
+            parse_mode="Markdown"
+        )
 
-print("Bot Started")
-app.run()
+        app.disconnect()
+
+    except Exception as e:
+        logging.error(f"Error in get_code: {e}")
+        bot.send_message(message.chat.id, f"❌ خطأ:\n{e}")
+
+# ---------- التحقق بخطوتين ----------
+def get_password(message, app):
+
+    try:
+        password = message.text
+        logging.info("Password received")
+
+        app.check_password(password)
+
+        session = app.export_session_string()
+
+        logging.info("Session generated after 2FA")
+
+        bot.send_message(
+            message.chat.id,
+            f"✅ الجلسة:\n\n`{session}`",
+            parse_mode="Markdown"
+        )
+
+        app.disconnect()
+
+    except Exception as e:
+        logging.error(f"Error in get_password: {e}")
+        bot.send_message(message.chat.id, f"❌ خطأ:\n{e}")
+
+# ---------- تشغيل ----------
+logging.info("Bot Started")
+
+bot.infinity_polling()
