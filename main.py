@@ -1,6 +1,5 @@
 from pyrogram import Client, filters
 
-# ضع توكن البوت التجريبي
 BOT_TOKEN = "8175656977:AAGYaBnd08Exerho1aYOOgGcFZVS1m5OG9w"
 
 app = Client(
@@ -11,11 +10,11 @@ app = Client(
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
-    await message.reply("✅ البوت شغال! ارسل /session لعمل جلسة.")
+    await message.reply("✅ البوت شغال! أرسل /session لتوليد الجلسة.")
 
 @app.on_message(filters.command("session"))
-async def session_generator(client, message):
-    await message.reply("⚡️ وظيفة إنشاء الجلسة ستضاف لاحقًا في نسخة الإنتاج.")
+async def session(client, message):
+    await message.reply("⚡️ هنا سيتم توليد الجلسة لاحقًا")
 
 print("Bot Started")
 app.run()
