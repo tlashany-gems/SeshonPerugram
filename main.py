@@ -9,7 +9,7 @@ from pyrogram.errors import (
 from pyromod import listen
 
 # ضع هنا بيانات البوت التجريبي
-BOT_TOKEN = "8175656977:AAGYaBnd08Exerho1aYOOgGcFZVS1m5OG9w"
+BOT_TOKEN = "8581486539:AAF0YsMyVCrkrFvTNwV7neitXlXsZmyFNno"
 
 # ملف البوت الرئيسي
 app = Client(
